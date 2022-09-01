@@ -50,8 +50,7 @@ def main():
     dev = init_distributed_device(args)
 
     if is_master(args):
-        pass
-        # wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
+        wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
 
 
     # Model
@@ -100,11 +99,11 @@ def main():
     )
     '''
 
-    start_step = 1
+    start_step = 0
     args.checkpoint_path = "checkpoints"
     if args.resume is not None and os.path.isfile(args.resume):
         # NOTE: resuming doesn't work with torch >1.11.0 yet (https://github.com/pytorch/pytorch/issues/80809)
-        checkpoint = torch.load(args.resume, map_location=args.device)
+        checkpoint = torch.load(args.resume, map_location='cpu')
         if 'step' in checkpoint:
             # resuming a train checkpoint w/ step and optimizer state
             start_step = checkpoint["step"]
@@ -135,7 +134,7 @@ def main():
 
     data['train'].set_epoch(0)
     tr_dat = data["train"].dataloader
-    step = start_step
+    step = start_step + 1
 
     autocast = torch.cuda.amp.autocast if args.precision == 'amp' else suppress
     mlp_model_h.train()
@@ -238,8 +237,7 @@ def main():
             for name, val in metrics.items():
                 if not (name.startswith("train") or name.startswith("val")):
                     name = "val/" + name # hack for zero-shot stuff
-                # wandb.log({name: val}, step=step)
-                print(name, val)
+                wandb.log({name: val}, step=step)
 
         step += 1
 
