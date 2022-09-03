@@ -19,31 +19,6 @@ from scheduler import cosine_lr
 from model import create_model_and_transforms
 
 
-'''
-class MLPCLIP(torch.nn.Module):
-    def __init__(self, model, img_mlp, txt_mlp, device):
-        super().__init__()
-        self.model = model
-        self.img_mlp = img_mlp
-        self.txt_mlp = txt_mlp
-
-        self.dev = device
-
-    def encode_text(self, text):
-        temp = self.model.encode_text(text)
-        temp = self.txt_mlp(temp)
-        return temp
-    def encode_image(self, image):
-        temp = self.model.encode_image(image)
-        temp = self.img_mlp(temp)
-        return temp
-
-    def forward(self, img, txt):
-        img_feat = self.encode_image(img)
-        txt_feat = self.encode_text(txt)
-        return img_feat, txt_feat, self.model.logit_scale
-'''
-
 def main():
     # Args
     args = parse_args()
@@ -53,22 +28,6 @@ def main():
         pass
         # wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
 
-
-    '''
-    # Model
-    model_l, _, preprocess = open_clip.create_model_and_transforms('ViT-L-14', pretrained='laion400m_e32')
-    model_h, _, preprocess = open_clip.create_model_and_transforms('ViT-H-14') # MAX BS = ~256
-    model_h.set_grad_checkpointing()
-
-    d_model_l = 768
-    d_model_h = 1024
-
-    img_mlp = nn.Linear(d_model_h, d_model_l, bias=False)
-    txt_mlp = nn.Linear(d_model_h, d_model_l, bias=False)
-
-    mlp_model_l = MLPCLIP(model_l, nn.Identity(), nn.Identity(), dev).to(dev)
-    mlp_model_h = MLPCLIP(model_h, img_mlp, txt_mlp, dev).to(dev)
-    '''
     # Model
     MODALITY = "text"
     teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, MODALITY, None, dev)
@@ -146,22 +105,13 @@ def main():
         t0_t_forward = time.perf_counter()
         with torch.no_grad():
             with autocast():
-                # l_img_feat, l_txt_feat, l_logit_scale = mlp_model_l(images, texts)
                 t_feat = teacher_model(x)
-                # l_img_feat = model_l.encode_image(images)
-                # l_txt_feat = model_l.encode_text(texts)
         t_t_for = time.perf_counter() - t0_t_forward
 
         metrics.update({"train/teacher_forward_samples_per_s": x.shape[0]/t_t_for})
 
         t0_s_forward = time.perf_counter()
         with autocast():
-            # h_img_feat, h_txt_feat, h_logit_scale = student_model(images, texts)
-            '''
-            loss_img = loss(h_img_feat, l_img_feat) + h_logit_scale - h_logit_scale
-            loss_txt = loss(h_txt_feat, l_txt_feat) + h_logit_scale - h_logit_scale
-            total_loss = loss_img + loss_txt
-            '''
             s_feat = student_model(x)
             total_loss = loss(s_feat, t_feat)
 
@@ -172,7 +122,6 @@ def main():
         opt.step()
         opt.zero_grad()
 
-        # metrics.update({"train/img_loss": loss_img.item(), "train/txt_loss": loss_txt.item()})
         metrics.update({f"train/{MODALITY}_loss": total_loss.item()})
 
         # Zero-shot eval
@@ -201,7 +150,6 @@ def main():
             student_model.eval()
             val_dat = data['val'].dataloader
             n_batch = 0
-            # tot_img_loss, tot_txt_loss = 0.0, 0.0
             tot_loss = 0.0
             with torch.no_grad():
                 for batch in tqdm(val_dat, unit_scale=args.batch_size):
@@ -217,26 +165,12 @@ def main():
 
                     n_batch += 1
                     with autocast():
-                        # img_feat, txt_feat, logit_scale = student_model(val_img, val_txt)
                         s_feat = student_model(val_x)
-                        # targ_img_feat, targ_txt_feat = model_l.encode_image(val_img), model_l.encode_text(val_txt)
-                        # targ_img_feat, targ_txt_feat, l_log_scale = teacher_model(val_img, val_txt)
                         t_feat = teacher_model(val_x)
 
                         val_loss = loss(s_feat, t_feat)
                         tot_loss += val_loss.item()
-                        '''
-                        val_loss_img = loss(img_feat, targ_img_feat)
-                        val_loss_txt = loss(txt_feat, targ_txt_feat)
-                        tot_img_loss += val_loss_img.item()
-                        tot_txt_loss += val_loss_txt.item()
-                        '''
-                '''
-                tot_txt_loss /= n_batch
-                tot_img_loss /= n_batch
-                '''
                 tot_loss /= n_batch
-            # eval_metrics = {"val/img_loss": tot_img_loss, "val/txt_loss": tot_txt_loss}
             eval_metrics = {f"val/{MODALITY}_loss": tot_loss}
             metrics.update(eval_metrics)
 
