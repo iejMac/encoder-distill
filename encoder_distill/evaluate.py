@@ -9,9 +9,12 @@ def loss_eval(student_model, teacher_model, data, loss, autocast, args):
     val_dat = data['val'].dataloader
     n_batch = 0
     tot_loss = 0.0
+
+    batch_thresh = args.val_num_samples // args.batch_size + 1
+
     with torch.no_grad():
         for batch in tqdm(val_dat, unit_scale=args.batch_size):
-            if n_batch > 3: # TODO: remove
+            if n_batch > batch_thresh:
                 break
             val_img, val_txt = batch
 
