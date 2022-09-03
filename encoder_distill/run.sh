@@ -7,17 +7,18 @@ python3.8 train.py \
         --val-num-samples 10000 \
         --imagenet-val "/fsx/rom1504/imagenetval/imagenetvalv1" \
         --dataset-type "webdataset" \
-        --batch-size 128 \
+        --batch-size 32 \
         --lr 2e-4 \
         --beta1 0.9 \
         --beta2 0.98 \
         --eps 1e-6 \
         --wd 0.0 \
         --workers 6 \
-        --steps 100000 \
-        --warmup 1000 \
+        --epochs 10 \
+        --steps 625000 \
+        --warmup 5000 \
         --modality "image" \
         --save-frequency 1000 \
         --val-frequency 100 \
         --report-to "wandb" \
-        --name "H 2048 bs 2e-4 lr" \
+        --name "H 2048 bs 2e-4 lr 10k GPUh" \

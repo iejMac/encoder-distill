@@ -85,83 +85,86 @@ def main():
     # Data:
     data = get_data(args, (preprocess, preprocess))
 
-    data['train'].set_epoch(0)
-    tr_dat = data["train"].dataloader
-    step = start_step + 1
-
     autocast = torch.cuda.amp.autocast if args.precision == 'amp' else suppress
     student_model.train()
+    step = start_step + 1
 
-    for batch in tr_dat:
-        if step > args.steps:
-            break
-        t0 = time.perf_counter()
-        metrics = {}
-        scheduler(step)
-        metrics.update({"train/lr": opt.param_groups[0]["lr"]})
 
-        images, texts = batch
-        if args.modality == "image":
-            x = images
-        elif args.modality == "text":
-            x = texts
+    for epoch in range(args.epochs):
+        data['train'].set_epoch(0)
+        tr_dat = data["train"].dataloader
 
-        x = x.to(dev, non_blocking=True)
 
-        t0_t_forward = time.perf_counter()
-        with torch.no_grad():
+        for batch in tr_dat:
+            if step > args.steps:
+                break
+            t0 = time.perf_counter()
+            metrics = {}
+            scheduler(step)
+            metrics.update({"train/lr": opt.param_groups[0]["lr"]})
+
+            images, texts = batch
+            if args.modality == "image":
+                x = images
+            elif args.modality == "text":
+                x = texts
+
+            x = x.to(dev, non_blocking=True)
+
+            t0_t_forward = time.perf_counter()
+            with torch.no_grad():
+                with autocast():
+                    t_feat = teacher_model(x)
+            t_t_for = time.perf_counter() - t0_t_forward
+
+            metrics.update({"train/teacher_forward_samples_per_s": x.shape[0]/t_t_for})
+
+            t0_s_forward = time.perf_counter()
             with autocast():
-                t_feat = teacher_model(x)
-        t_t_for = time.perf_counter() - t0_t_forward
+                s_feat = student_model(x)
+                total_loss = loss(s_feat, t_feat)
 
-        metrics.update({"train/teacher_forward_samples_per_s": x.shape[0]/t_t_for})
+            total_loss.backward()
+            t_s_for_back = time.perf_counter() - t0_s_forward
+            metrics.update({"train/student_forward_backward_samples_per_s": x.shape[0]/t_s_for_back})
+            
+            opt.step()
+            opt.zero_grad()
 
-        t0_s_forward = time.perf_counter()
-        with autocast():
-            s_feat = student_model(x)
-            total_loss = loss(s_feat, t_feat)
+            metrics.update({f"train/{args.modality}_loss": total_loss.item()})
 
-        total_loss.backward()
-        t_s_for_back = time.perf_counter() - t0_s_forward
-        metrics.update({"train/student_forward_backward_samples_per_s": x.shape[0]/t_s_for_back})
-        
-        opt.step()
-        opt.zero_grad()
+            # MSE eval
+            if step % args.val_frequency == 0:
+                eval_metrics = loss_eval(student_model, teacher_model, data, loss, autocast, args)
+                metrics.update(eval_metrics)
+                student_model.train()
 
-        metrics.update({f"train/{args.modality}_loss": total_loss.item()})
+            if is_master(args) and (step % args.save_frequency == 0):
+                # Save checkpoint:
+                if is_master(args):
+                    print(f"Saving checkpoint at step {step}...")
+                    checkpoint_dict = {
+                        "step": step,
+                        "name": args.name,
+                        "state_dict": student_model.state_dict(),
+                        "optimizer": opt.state_dict(),
+                    }        
+                    torch.save(
+                        checkpoint_dict,
+                        os.path.join(args.checkpoint_path, f"step_{step}.pt"),
+                    )
 
-        # MSE eval
-        if step % args.val_frequency == 0:
-            eval_metrics = loss_eval(student_model, teacher_model, data, loss, autocast, args)
-            metrics.update(eval_metrics)
-            student_model.train()
+            tf = time.perf_counter()
+            metrics.update({"train/samples_per_s": x.shape[0]/(tf-t0)})
 
-        if is_master(args) and (step % args.save_frequency == 0):
-            # Save checkpoint:
             if is_master(args):
-                print(f"Saving checkpoint at step {step}...")
-                checkpoint_dict = {
-                    "step": step,
-                    "name": args.name,
-                    "state_dict": student_model.state_dict(),
-                    "optimizer": opt.state_dict(),
-                }        
-                torch.save(
-                    checkpoint_dict,
-                    os.path.join(args.checkpoint_path, f"step_{step}.pt"),
-                )
+                for name, val in metrics.items():
+                    if args.report_to == "wandb":
+                        wandb.log({name: val}, step=step)
+                    elif args.report_to == "stdout":
+                        print(name, val)
 
-        tf = time.perf_counter()
-        metrics.update({"train/samples_per_s": x.shape[0]/(tf-t0)})
-
-        if is_master(args):
-            for name, val in metrics.items():
-                if args.report_to == "wandb":
-                    wandb.log({name: val}, step=step)
-                elif args.report_to == "stdout":
-                    print(name, val)
-
-        step += 1
+            step += 1
 
 if __name__ == "__main__":
     main()
