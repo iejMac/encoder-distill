@@ -17,6 +17,7 @@ from params import parse_args
 from zero_shot import zero_shot_eval
 from scheduler import cosine_lr
 from model import create_model_and_transforms
+from evaluate import loss_eval
 
 
 def main():
@@ -29,9 +30,8 @@ def main():
         # wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
 
     # Model
-    MODALITY = "text"
-    teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, MODALITY, None, dev)
-    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, MODALITY, (1024, 768), dev)
+    teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, args.modality, None, dev)
+    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, args.modality, (1024, 768), dev)
     preprocess = preprocess_t # = preprocess_s for now
 
     # Loss and Opt:
@@ -95,9 +95,9 @@ def main():
         metrics.update({"train/lr": opt.param_groups[0]["lr"]})
 
         images, texts = batch
-        if MODALITY == "image":
+        if args.modality == "image":
             x = images
-        elif MODALITY == "text":
+        elif args.modality == "text":
             x = texts
 
         x = x.to(dev, non_blocking=True)
@@ -122,14 +122,15 @@ def main():
         opt.step()
         opt.zero_grad()
 
-        metrics.update({f"train/{MODALITY}_loss": total_loss.item()})
+        metrics.update({f"train/{args.modality}_loss": total_loss.item()})
 
-        # Zero-shot eval
-        if step % args.zeroshot_frequency == 0:
-            student_model.eval()
-            zero_shot_metrics = zero_shot_eval(student_model, data, 0, args)
-            metrics.update(zero_shot_metrics)
+        # MSE eval
+        if step % args.val_frequency == 0:
+            eval_metrics = loss_eval(student_model, teacher_model, data, loss, autocast, args)
+            metrics.update(eval_metrics)
+            student_model.train()
 
+        if is_master(args) and (step % args.save_frequency == 0):
             # Save checkpoint:
             if is_master(args):
                 print(f"Saving checkpoint at step {step}...")
@@ -144,45 +145,11 @@ def main():
                     os.path.join(args.checkpoint_path, f"step_{step}.pt"),
                 )
 
-            student_model.train()
-        # MSE eval
-        if step % args.val_frequency == 0:
-            student_model.eval()
-            val_dat = data['val'].dataloader
-            n_batch = 0
-            tot_loss = 0.0
-            with torch.no_grad():
-                for batch in tqdm(val_dat, unit_scale=args.batch_size):
-                    if n_batch > 3: # TODO: remove
-                        break
-                    val_img, val_txt = batch
-                    if MODALITY == "image":
-                        x_val = val_img
-                    elif MODALITY == "test":
-                        x_val = val_txt
-                        
-                    val_x = val_x.to(dev, non_blocking=True)
-
-                    n_batch += 1
-                    with autocast():
-                        s_feat = student_model(val_x)
-                        t_feat = teacher_model(val_x)
-
-                        val_loss = loss(s_feat, t_feat)
-                        tot_loss += val_loss.item()
-                tot_loss /= n_batch
-            eval_metrics = {f"val/{MODALITY}_loss": tot_loss}
-            metrics.update(eval_metrics)
-
-            student_model.train()
-
         tf = time.perf_counter()
         metrics.update({"train/samples_per_s": x.shape[0]/(tf-t0)})
 
         if is_master(args):
             for name, val in metrics.items():
-                if not (name.startswith("train") or name.startswith("val")):
-                    name = "val/" + name # hack for zero-shot stuff
                 # wandb.log({name: val}, step=step)
                 print(name, val)
 

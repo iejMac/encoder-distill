@@ -97,6 +97,12 @@ def parse_args():
         help="Optional identifier for the experiment when storing logs. Otherwise use current time.",
     )
     parser.add_argument(
+        "--modality",
+        type=str,
+        default=None,
+        help="Input data modality.",
+    )
+    parser.add_argument(
         "--workers", type=int, default=1, help="Number of dataloader workers per GPU."
     )
     parser.add_argument(

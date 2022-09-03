@@ -15,6 +15,7 @@ torchrun --nproc_per_node 8 train.py \
         --wd 0.0 \
         --workers 6 \
         --epochs 1 \
-        --zeroshot-frequency 1000 \
+        --modality "image" \
+        --save-frequency 1000 \
         --val-frequency 100 \
         --name "H 256 bs 1e-4 lr long run" \
