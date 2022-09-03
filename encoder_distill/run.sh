@@ -14,7 +14,8 @@ torchrun --nproc_per_node 8 train.py \
         --eps 1e-6 \
         --wd 0.0 \
         --workers 6 \
-        --epochs 1 \
+        --steps 100000 \
+        --warmup 1000 \
         --modality "image" \
         --save-frequency 1000 \
         --val-frequency 100 \
