@@ -25,9 +25,8 @@ def main():
     args = parse_args()
     dev = init_distributed_device(args)
 
-    if is_master(args):
-        pass
-        # wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
+    if is_master(args) and (args.report_to == "wandb"):
+        wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
 
     # Model
     teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, args.modality, None, dev)
@@ -150,8 +149,10 @@ def main():
 
         if is_master(args):
             for name, val in metrics.items():
-                # wandb.log({name: val}, step=step)
-                print(name, val)
+                if args.report_to == "wandb":
+                    wandb.log({name: val}, step=step)
+                elif args.report_to == "stdout":
+                    print(name, val)
 
         step += 1
 

@@ -33,3 +33,8 @@ class CLIPText(nn.Module):
         # take features from the eot embedding (eot_token is the highest number in each sequence)
         x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
         return x
+
+
+# TODO: make this function take the 2 separate MLP's and put together a working CLIP
+def combine_img_text():
+    pass

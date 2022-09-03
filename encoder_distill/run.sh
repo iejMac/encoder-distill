@@ -18,4 +18,5 @@ torchrun --nproc_per_node 8 train.py \
         --modality "image" \
         --save-frequency 1000 \
         --val-frequency 100 \
+        --report-to "wandb" \
         --name "H 256 bs 1e-4 lr long run" \
