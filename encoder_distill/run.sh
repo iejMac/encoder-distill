@@ -1,6 +1,6 @@
 #!/bin/bash
 
-torchrun --nproc_per_node 8 main.py \
+torchrun --nproc_per_node 8 train.py \
         --train-data "pipe:aws s3 cp s3://s-datasets/laion5b/laion2B-data/{000000..231348}.tar -" \
         --train-num-samples 2000000000 \
         --val-data "pipe:aws s3 cp s3://s-datasets/laion5b/laion2B-data/{231349..231349}.tar -" \
