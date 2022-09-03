@@ -76,11 +76,8 @@ def main():
 
     student_model = torch.nn.parallel.DistributedDataParallel(student_model, device_ids=[dev])
 
-    TOTAL_STEPS = 100000
-    WARMUP = 1000
-
     # Scheduler:
-    scheduler = cosine_lr(opt, args.lr, WARMUP, TOTAL_STEPS)
+    scheduler = cosine_lr(opt, args.lr, args.warmup, args.steps)
 
     # Data:
     data = get_data(args, (preprocess, preprocess))
@@ -93,7 +90,7 @@ def main():
     student_model.train()
 
     for batch in tr_dat:
-        if step > TOTAL_STEPS:
+        if step > args.steps:
             break
         t0 = time.perf_counter()
         metrics = {}
