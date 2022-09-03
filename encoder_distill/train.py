@@ -12,7 +12,7 @@ from tqdm import tqdm
 from torch import nn
 
 from data import get_data
-from distributed import init_distributed_device, is_master
+from distributed import init_distributed_device, is_master, world_info_from_env
 from params import parse_args
 from zero_shot import zero_shot_eval
 from scheduler import cosine_lr
@@ -23,6 +23,14 @@ from evaluate import loss_eval
 def main():
     # Args
     args = parse_args()
+
+    # discover initial world args early so we can log properly
+    args.distributed = False
+    args.local_rank, args.rank, args.world_size = world_info_from_env()
+
+    # fully initialize distributed device environment
+    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.deterministic = False
     dev = init_distributed_device(args)
 
     if is_master(args) and (args.report_to == "wandb"):
@@ -73,7 +81,6 @@ def main():
 
     # Scheduler:
     scheduler = cosine_lr(opt, args.lr, WARMUP, TOTAL_STEPS)
-
 
     # Data:
     data = get_data(args, (preprocess, preprocess))
