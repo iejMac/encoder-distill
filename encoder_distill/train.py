@@ -55,6 +55,9 @@ def main():
 
     start_step = 0
     args.checkpoint_path = "checkpoints"
+    if is_master(args):
+        os.makedirs(args.checkpoint_path, exist_ok=True)
+
     if args.resume is not None and os.path.isfile(args.resume):
         # NOTE: resuming doesn't work with torch >1.11.0 yet (https://github.com/pytorch/pytorch/issues/80809)
         checkpoint = torch.load(args.resume, map_location='cpu')
