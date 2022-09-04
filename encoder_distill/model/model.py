@@ -3,7 +3,7 @@ import torch
 
 from torch import nn
 
-from .clip import CLIPImage, CLIPText
+from .clip import CLIPImage, CLIPText, combine_image_text
 
 
 class MLPEncoder(nn.Module):
@@ -33,3 +33,19 @@ def create_model_and_transforms(model_type, model_kw_args, modality, mlp_dims, d
     encoder = MLPEncoder(model, mlp)
     encoder.to(device)
     return encoder, preprocess
+
+
+def put_together(model_type, model_kw_args, mlp_dims, image_checkpoint, text_checkpoint, device):
+    # Create models
+    img_model, preprocess = create_model_and_transforms(model_type, model_kw_args, "image", mlp_dims, device)
+    txt_model, _ = create_model_and_transforms(model_type, model_kw_args, "text", mlp_dims, device)
+
+    # Load checkpoints
+    # TODO fill in
+
+    if "clip" in model_type.lower():
+        model = combine_image_text(img_model, txt_model, mlp_dims)
+    else:
+        model = None
+
+    return model, preprocess

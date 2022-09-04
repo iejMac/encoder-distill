@@ -35,6 +35,29 @@ class CLIPText(nn.Module):
         return x
 
 
+# Useful for evaluation
+class MLPCLIP(torch.nn.Module):
+    def __init__(self, img_model, txt_model):
+        super().__init__()
+        self.img_model = img_model
+        self.txt_model = txt_model
+
+    def encode_text(self, text):
+        return self.txt_model(text)
+    def encode_image(self, image):
+        return self.img_model(image)
+
+    def forward(self, img, txt):
+        img_feat = self.encode_image(img)
+        txt_feat = self.encode_text(txt)
+        return img_feat, txt_feat
+
 # TODO: make this function take the 2 separate MLP's and put together a working CLIP
-def combine_img_text():
-    pass
+def combine_image_text(image_model, text_model, mlp_dims):
+    if mlp_dims is None:
+        #TODO take off MLP
+        pass
+    else:
+        model = MLPCLIP(image_model, text_model)
+
+    return model
