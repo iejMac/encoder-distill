@@ -13,8 +13,8 @@ model_type = "clip"
 model_kwargs = {"model_name": "ViT-H-14"}
 mlp_dims = (1024, 768)
 
-image_cpt = ""
-text_cpt = ""
+image_cpt = "checkpoints/H_16384_bs_7e-4_lr_10k_GPUh/step_2000.pt"
+text_cpt = "checkpoints/54k_text/step_54000.pt"
 
 args = parse_args()
 # discover initial world args early so we can log properly

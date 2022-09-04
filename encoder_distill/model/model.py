@@ -35,13 +35,22 @@ def create_model_and_transforms(model_type, model_kw_args, modality, mlp_dims, d
     return encoder, preprocess
 
 
+def load_cpt(model, cpt_path, dev):
+	checkpoint = torch.load(cpt_path, map_location=dev)
+	sd = checkpoint["state_dict"]
+	if next(iter(sd.items()))[0].startswith('module'):
+		sd = {k[len('module.'):]: v for k, v in sd.items()}
+	model.load_state_dict(sd)
+	return model
+
 def put_together(model_type, model_kw_args, mlp_dims, image_checkpoint, text_checkpoint, device):
     # Create models
     img_model, preprocess = create_model_and_transforms(model_type, model_kw_args, "image", mlp_dims, device)
     txt_model, _ = create_model_and_transforms(model_type, model_kw_args, "text", mlp_dims, device)
 
     # Load checkpoints
-    # TODO fill in
+    img_model = load_cpt(img_model, image_checkpoint, device)
+    txt_model = load_cpt(txt_model, text_checkpoint, device)
 
     if "clip" in model_type.lower():
         model = combine_image_text(img_model, txt_model, mlp_dims)
