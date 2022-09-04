@@ -54,7 +54,7 @@ def main():
     )
 
     start_step = 0
-    args.checkpoint_path = "checkpoints"
+    args.checkpoint_path = os.path.join("checkpoints", args.name)
     if is_master(args):
         os.makedirs(args.checkpoint_path, exist_ok=True)
 
@@ -85,7 +85,7 @@ def main():
     # Data:
     data = get_data(args, (preprocess, preprocess))
 
-    autocast = torch.cuda.amp.autocast if args.precision == 'amp' else suppress
+    autocast = lambda: torch.cuda.amp.autocast(dtype=torch.bfloat16) if args.precision == 'amp' else suppress
     student_model.train()
     step = start_step + 1
 
