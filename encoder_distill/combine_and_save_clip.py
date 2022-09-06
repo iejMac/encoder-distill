@@ -1,5 +1,6 @@
 import os
 import torch
+import numpy as np
 
 from data import get_data
 from distributed import world_info_from_env
@@ -22,11 +23,14 @@ args.distributed = False
 args.local_rank, args.rank, args.world_size = world_info_from_env()
 args.device = "cuda"
 
-model, preproc = put_together(model_type, model_kwargs, mlp_dims, image_cpt, text_cpt, args.device)
-model.to(args.device)
-data = get_data(args, (preproc, preproc))
+model, preproc = put_together(model_type, model_kwargs, mlp_dims, image_cpt, text_cpt, True, args.device)
 
-zero_shot_metrics = zero_shot_eval(model, data, 0, args)
+# Set SCALE
+model.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(80))
 
-print(zero_shot_metrics)
+save_name = "checkpoints/distilled_clip.pt"
+checkpoint_dict = {
+	"state_dict": model.state_dict(),
+}
 
+torch.save(checkpoint_dict, save_name)

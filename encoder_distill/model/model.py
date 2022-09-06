@@ -15,9 +15,9 @@ class MLPEncoder(nn.Module):
         return self.mlp(self.model(x))
 
 
-def create_model_and_transforms(model_type, model_kw_args, modality, mlp_dims, device):
+def create_model_and_transforms(model_type, model_kwargs, modality, mlp_dims, device):
     if "clip" in model_type.lower():
-        model, _, preprocess = open_clip.create_model_and_transforms(**model_kw_args)
+        model, _, preprocess = open_clip.create_model_and_transforms(**model_kwargs)
         model.set_grad_checkpointing() # TODO do we always want to do this?
         model.to(device) # TODO: does this double allocate on GPU?
 
@@ -43,17 +43,17 @@ def load_cpt(model, cpt_path, dev):
 	model.load_state_dict(sd)
 	return model
 
-def put_together(model_type, model_kw_args, mlp_dims, image_checkpoint, text_checkpoint, device):
+def put_together(model_type, model_kwargs, mlp_dims, image_checkpoint, text_checkpoint, remove_mlp, device):
     # Create models
-    img_model, preprocess = create_model_and_transforms(model_type, model_kw_args, "image", mlp_dims, device)
-    txt_model, _ = create_model_and_transforms(model_type, model_kw_args, "text", mlp_dims, device)
+    img_model, preprocess = create_model_and_transforms(model_type, model_kwargs, "image", mlp_dims, device)
+    txt_model, _ = create_model_and_transforms(model_type, model_kwargs, "text", mlp_dims, device)
 
     # Load checkpoints
     img_model = load_cpt(img_model, image_checkpoint, device)
     txt_model = load_cpt(txt_model, text_checkpoint, device)
 
     if "clip" in model_type.lower():
-        model = combine_image_text(img_model, txt_model, mlp_dims)
+        model = combine_image_text(img_model, txt_model, remove_mlp, model_kwargs)
     else:
         model = None
 

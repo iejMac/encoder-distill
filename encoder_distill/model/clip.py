@@ -1,3 +1,4 @@
+import open_clip
 import torch
 
 from torch import nn
@@ -52,11 +53,18 @@ class MLPCLIP(torch.nn.Module):
         txt_feat = self.encode_text(txt)
         return img_feat, txt_feat
 
-# TODO: make this function take the 2 separate MLP's and put together a working CLIP
-def combine_image_text(image_model, text_model, mlp_dims):
-    if mlp_dims is None:
-        #TODO take off MLP
-        pass
+def combine_image_text(image_model, text_model, remove_mlp, model_kwargs):
+    if remove_mlp:
+        model, _, _ = open_clip.create_model_and_transforms(**model_kwargs)
+        # TODO: do this cleaner
+        image_model, text_model = image_model.model, text_model.model
+        model.visual = image_model.visual
+        model.token_embedding = text_model.token_embedding
+        model.positional_embedding = text_model.positional_embedding
+        model.transformer = text_model.transformer
+        model.attn_mask = text_model.attn_mask
+        model.ln_final = text_model.ln_final
+        model.text_projection = text_model.text_projection       
     else:
         model = MLPCLIP(image_model, text_model)
 
