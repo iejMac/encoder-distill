@@ -10,6 +10,7 @@ from collections import OrderedDict
 from contextlib import suppress
 from tqdm import tqdm
 from torch import nn
+import torch.nn.functional as F
 
 from data import get_data
 from distributed import init_distributed_device, is_master, world_info_from_env
@@ -115,6 +116,7 @@ def main():
             with torch.no_grad():
                 with autocast():
                     t_feat = teacher_model(x)
+                    t_feat = F.normalize(t_feat, dim=-1)
             t_t_for = time.perf_counter() - t0_t_forward
 
             metrics.update({"train/teacher_forward_samples_per_s": x.shape[0]/t_t_for})
@@ -122,6 +124,7 @@ def main():
             t0_s_forward = time.perf_counter()
             with autocast():
                 s_feat = student_model(x)
+                s_feat = F.normalize(s_feat, dim=-1)
                 total_loss = loss(s_feat, t_feat)
 
             total_loss.backward()

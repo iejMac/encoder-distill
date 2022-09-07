@@ -28,7 +28,7 @@ def create_model_and_transforms(model_type, model_kwargs, modality, mlp_dims, de
             model = CLIPImage(model.visual)
             preprocess = preprocess
 
-    mlp = nn.Linear(*mlp_dims, bias=False) if mlp_dims is not None else nn.Identity()
+    mlp = nn.Linear(*mlp_dims, bias=True) if mlp_dims is not None else nn.Identity()
 
     encoder = MLPEncoder(model, mlp)
     encoder.to(device)

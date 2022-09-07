@@ -29,6 +29,8 @@ def loss_eval(student_model, teacher_model, data, loss, autocast, args):
             with autocast():
                 s_feat = student_model(val_x)
                 t_feat = teacher_model(val_x)
+                t_feat = F.normalize(t_feat, dim=-1)
+                s_feat = F.normalize(s_feat, dim=-1)
 
                 val_loss = loss(s_feat, t_feat)
                 tot_loss += val_loss.item()
