@@ -14,17 +14,17 @@ if __name__ == "__main__":
     REQUIREMENTS = _read_reqs("requirements.txt")
 
     setup(
-        name="python_template",
+        name="encoder-distill",
         packages=find_packages(),
         include_package_data=True,
         version="1.0.0",
         license="MIT",
-        description="A python template",
+        description="General model distillation library.",
         long_description=long_description,
         long_description_content_type="text/markdown",
-        author="Romain Beaumont",
-        author_email="romain.rom1@gmail.com",
-        url="https://github.com/rom1504/python_template",
+        author="Maciej Kilian",
+        author_email="kilianmaciej6@gmail.com",
+        url="https://github.com/iejMac/encoder-distill",
         data_files=[(".", ["README.md"])],
         keywords=["machine learning"],
         install_requires=REQUIREMENTS,

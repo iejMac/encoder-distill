@@ -38,7 +38,8 @@ def main():
 
     # Model
     teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, args.modality, None, dev)
-    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, args.modality, (1024, 768), dev)
+    # student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, args.modality, (1024, 768), dev)
+    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-B-32"}, args.modality, (512, 768), dev)
     preprocess = preprocess_t # = preprocess_s for now
 
     # Loss and Opt:

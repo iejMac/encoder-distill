@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python3.8 imagenet_eval.py \
+python imagenet_eval.py \
         --imagenet-val "/fsx/rom1504/imagenetval/imagenetvalv1" \
         --dataset-type "webdataset" \
         --batch-size 256 \

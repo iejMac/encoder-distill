@@ -1,28 +1,24 @@
-# python_template
-[![pypi](https://img.shields.io/pypi/v/python_template.svg)](https://pypi.python.org/pypi/python_template)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rom1504/python_template/blob/master/notebook/python_template_getting_started.ipynb)
-[![Try it on gitpod](https://img.shields.io/badge/try-on%20gitpod-brightgreen.svg)](https://gitpod.io/#https://github.com/rom1504/python_template)
+# encoder-distill
+[![pypi](https://img.shields.io/pypi/v/encoder-distill.svg)](https://pypi.python.org/pypi/encoder-distill)
 
-A nice template to start with
+Align embedding spaces of PyTorch encoders with common input types. For results see https://wandb.ai/iejmac/h14_distillation.
 
 ## Install
+(Not working yet)
 
-pip install python_template
+
+pip install encoder-distill
 
 ## Python examples
+(No examples yet)
+
 
 Checkout these examples to call this as a lib:
 * [example.py](examples/example.py)
 
 ## API
+TODO: make API example
 
-This module exposes a single function `hello_world` which takes the same arguments as the command line tool:
-
-* **message** the message to print. (*required*)
-
-## For development
-
-Either locally, or in [gitpod](https://gitpod.io/#https://github.com/rom1504/python_template) (do `export PIP_USER=false` there)
 
 Setup a virtualenv:
 
