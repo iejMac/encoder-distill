@@ -1,4 +1,4 @@
-# encoder-distill
+# encoder-distill (WIP)
 [![pypi](https://img.shields.io/pypi/v/encoder-distill.svg)](https://pypi.python.org/pypi/encoder-distill)
 
 Align embedding spaces of PyTorch encoders with common input types. For results see https://wandb.ai/iejmac/h14_distillation.
