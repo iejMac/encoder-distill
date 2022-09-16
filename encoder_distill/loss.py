@@ -128,6 +128,9 @@ class ClipLoss(nn.Module):
             labels = self.labels[device]
         '''
 
+        t_logits_per_image = t_logits_per_image.softmax(dim=1)
+        t_logits_per_text = t_logits_per_text.softmax(dim=1)
+
         total_loss = (
             F.cross_entropy(s_logits_per_image, t_logits_per_image) +
             F.cross_entropy(s_logits_per_text, t_logits_per_text)
