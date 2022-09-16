@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 from tqdm import tqdm
 
@@ -55,7 +56,9 @@ def dual_loss_eval(student_model, teacher_model, data, loss, autocast, args):
             n_batch += 1
             with autocast():
                 si_feat, st_feat = student_model(val_img, val_txt)
+                si_feat, st_feat = F.normalize(si_feat, dim=-1), F.normalize(st_feat, dim=-1)
                 ti_feat, tt_feat = teacher_model(val_img, val_txt)
+                ti_feat, tt_feat = F.normalize(ti_feat, dim=-1), F.normalize(tt_feat, dim=-1)
 
                 s_similarities = si_feat @ st_feat.T
                 t_similarities = ti_feat @ tt_feat.T

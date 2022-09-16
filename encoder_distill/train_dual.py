@@ -5,6 +5,7 @@ import torch
 from PIL import Image
 import open_clip
 from argparse import Namespace
+import torch.nn.functional as F
 
 from collections import OrderedDict
 from contextlib import suppress
@@ -13,11 +14,12 @@ from torch import nn
 
 from data import get_data
 from distributed import init_distributed_device, is_master, world_info_from_env
-from params import parse_args
-from zero_shot import zero_shot_eval
-from scheduler import cosine_lr
+from evaluate import dual_loss_eval
+from loss import ClipLoss
 from model import create_model_and_transforms
-from evaluate import loss_eval
+from params import parse_args
+from scheduler import cosine_lr
+from zero_shot import zero_shot_eval
 
 
 def main():
@@ -37,13 +39,21 @@ def main():
         wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
 
     # Model
-    teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, "image,text", None, dev)
-    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, "image,text", (1024, 768), dev)
+    teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, args.modality, None, dev)
+    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, args.modality, (1024, 768), dev)
 
     preprocess, _ = preprocess_t # = preprocess_s for now
 
     # Loss and Opt:
-    loss = nn.MSELoss()
+    loss = ClipLoss(
+        local_loss=args.local_loss,
+        gather_with_grad=args.gather_with_grad,
+        cache_labels=True,
+        rank=args.rank,
+        world_size=args.world_size,
+        use_horovod=args.horovod
+    )
+
     params = student_model.parameters()
 
     opt = torch.optim.AdamW(
@@ -111,20 +121,22 @@ def main():
             with torch.no_grad():
                 with autocast():
                     ti_feat, tt_feat = teacher_model(images, texts)
+                    ti_feat, tt_feat = F.normalize(ti_feat, dim=-1), F.normalize(tt_feat, dim=-1)
                     t_similarities = ti_feat @ tt_feat.T
             t_t_for = time.perf_counter() - t0_t_forward
 
-            metrics.update({"train/teacher_forward_samples_per_s": x.shape[0]/t_t_for})
+            metrics.update({"train/teacher_forward_samples_per_s": images.shape[0]/t_t_for})
 
             t0_s_forward = time.perf_counter()
             with autocast():
                 si_feat, st_feat = student_model(images, texts)
+                si_feat, st_feat = F.normalize(si_feat, dim=-1), F.normalize(st_feat, dim=-1)
                 s_similarities = si_feat @ st_feat.T
                 total_loss = loss(s_similarities, t_similarities)
 
             total_loss.backward()
             t_s_for_back = time.perf_counter() - t0_s_forward
-            metrics.update({"train/student_forward_backward_samples_per_s": x.shape[0]/t_s_for_back})
+            metrics.update({"train/student_forward_backward_samples_per_s": images.shape[0]/t_s_for_back})
             
             opt.step()
             opt.zero_grad()
@@ -153,7 +165,7 @@ def main():
                     )
 
             tf = time.perf_counter()
-            metrics.update({"train/samples_per_s": x.shape[0]/(tf-t0)})
+            metrics.update({"train/samples_per_s": images.shape[0]/(tf-t0)})
 
             if is_master(args):
                 for name, val in metrics.items():
