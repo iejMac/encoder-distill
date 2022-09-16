@@ -37,10 +37,10 @@ def main():
         wandb.init(project="h14_distillation", entity="iejmac", name=args.name)
 
     # Model
-    teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, args.modality, None, dev)
-    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, args.modality, (1024, 768), dev)
-    # student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-B-32"}, args.modality, (512, 768), dev)
-    preprocess = preprocess_t # = preprocess_s for now
+    teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, "image,text", None, dev)
+    student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, "image,text", (1024, 768), dev)
+
+    preprocess, _ = preprocess_t # = preprocess_s for now
 
     # Loss and Opt:
     loss = nn.MSELoss()
@@ -105,25 +105,22 @@ def main():
             metrics.update({"train/lr": opt.param_groups[0]["lr"]})
 
             images, texts = batch
-            if args.modality == "image":
-                x = images
-            elif args.modality == "text":
-                x = texts
-
-            x = x.to(dev, non_blocking=True)
+            images, texts = images.to(dev, non_blocking=True), texts.to(dev, non_blocking=True)
 
             t0_t_forward = time.perf_counter()
             with torch.no_grad():
                 with autocast():
-                    t_feat = teacher_model(x)
+                    ti_feat, tt_feat = teacher_model(images, texts)
+                    t_similarities = ti_feat @ tt_feat.T
             t_t_for = time.perf_counter() - t0_t_forward
 
             metrics.update({"train/teacher_forward_samples_per_s": x.shape[0]/t_t_for})
 
             t0_s_forward = time.perf_counter()
             with autocast():
-                s_feat = student_model(x)
-                total_loss = loss(s_feat, t_feat)
+                si_feat, st_feat = student_model(images, texts)
+                s_similarities = si_feat @ st_feat.T
+                total_loss = loss(s_similarities, t_similarities)
 
             total_loss.backward()
             t_s_for_back = time.perf_counter() - t0_s_forward
@@ -132,11 +129,11 @@ def main():
             opt.step()
             opt.zero_grad()
 
-            metrics.update({f"train/{args.modality}_loss": total_loss.item()})
+            metrics.update({f"train/similarity_loss": total_loss.item()})
 
             # MSE eval
             if step % args.val_frequency == 0:
-                eval_metrics = loss_eval(student_model, teacher_model, data, loss, autocast, args)
+                eval_metrics = dual_loss_eval(student_model, teacher_model, data, loss, autocast, args)
                 metrics.update(eval_metrics)
                 student_model.train()
 

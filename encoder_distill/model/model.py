@@ -3,7 +3,7 @@ import torch
 
 from torch import nn
 
-from .clip import CLIPImage, CLIPText, combine_image_text
+from .clip import MLPCLIP, CLIPImage, CLIPText, combine_image_text
 
 
 class MLPEncoder(nn.Module):
@@ -21,17 +21,29 @@ def create_model_and_transforms(model_type, model_kwargs, modality, mlp_dims, de
         model.set_grad_checkpointing() # TODO do we always want to do this?
         model.to(device) # TODO: does this double allocate on GPU?
 
-        if modality == "text":
-            model = CLIPText(model.token_embedding, model.positional_embedding, model.transformer, model.attn_mask, model.ln_final, model.text_projection)
-            preprocess = nn.Identity()
-        elif modality == "image":
-            model = CLIPImage(model.visual)
-            preprocess = preprocess
+        model_image, mlp_image, preprocess_image = None, None, None
+        model_text, mlp_text, preprocess_text = None, None, None
 
-    mlp = nn.Linear(*mlp_dims, bias=False) if mlp_dims is not None else nn.Identity()
+        if "text" in modality:
+            model_text = CLIPText(model.token_embedding, model.positional_embedding, model.transformer, model.attn_mask, model.ln_final, model.text_projection)
+            preprocess_text = nn.Identity()
+            mlp_image = nn.Linear(*mlp_dims, bias=False) if mlp_dims is not None else nn.Identity()
+        elif "image" in modality:
+            model_image = CLIPImage(model.visual)
+            preprocess_image = preprocess
+            mlp_text = nn.Linear(*mlp_dims, bias=False) if mlp_dims is not None else nn.Identity()
 
-    encoder = MLPEncoder(model, mlp)
-    encoder.to(device)
+
+    if model_image is not None and model_text is not None:
+        encoder_text = MLPEncoder(model_text, mlp_text)
+        encoder_image = MLPEncoder(model_image, mlp_image)
+        encoder = MLPCLIP(encoder_image, encoder_text) # TODO: Generalize this into a DualEncoder or something
+        preprocess = (preprocess_image, preprocess_text)
+    else:
+        model, mlp, preprocess = model_image, mlp_image, preprocess_image if model_image is not None else model_text, mlp_text, preprocess_text
+        encoder = MLPEncoder(model, mlp)
+        encoder.to(device)
+
     return encoder, preprocess
 
 
