@@ -85,23 +85,36 @@ class ClipLoss(nn.Module):
         self.prev_num_logits = 0
         self.labels = {}
 
-    def forward(self, image_features, text_features, logit_scale):
-        device = image_features.device
+    def forward(self, si_feat, st_feat, s_ls, ti_feat, tt_feat, t_ls):
+        device = si_feat.device
         if self.world_size > 1:
-            all_image_features, all_text_features = gather_features(
-                image_features, text_features,
+            all_si_features, all_st_features = gather_features(
+                si_feat, st_feat,
+                self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
+            all_ti_features, all_tt_features = gather_features(
+                ti_feat, tt_feat,
                 self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
 
             if self.local_loss:
-                logits_per_image = logit_scale * image_features @ all_text_features.T
-                logits_per_text = logit_scale * text_features @ all_image_features.T
+                s_logits_per_image = s_ls * si_feat @ all_st_features.T
+                s_logits_per_text = s_ls * st_feat @ all_si_features.T
+                t_logits_per_image = t_ls * ti_feat @ all_tt_features.T
+                t_logits_per_text = t_ls * tt_feat @ all_ti_features.T
             else:
-                logits_per_image = logit_scale * all_image_features @ all_text_features.T
-                logits_per_text = logits_per_image.T
+                s_logits_per_image = s_ls * all_si_features @ all_st_features.T
+                s_logits_per_text = s_logits_per_image.T
+                t_logits_per_image = t_ls * all_ti_features @ all_tt_features.T
+                t_logits_per_text = t_logits_per_image.T
         else:
-            logits_per_image = logit_scale * image_features @ text_features.T
-            logits_per_text = logit_scale * text_features @ image_features.T
+            s_logits_per_image = s_ls * si_feat @ st_feat.T
+            s_logits_per_text = s_ls * st_feat @ si_feat.T
+            t_logits_per_image = t_ls * ti_feat @ tt_feat.T
+            t_logits_per_text = t_ls * tt_feat @ ti_feat.T
 
+
+        # NOTE: don't understand why you would need to cache now so I'll comment it out
+        # and discover this later
+        '''
         # calculated ground-truth and cache if enabled
         num_logits = logits_per_image.shape[0]
         if self.prev_num_logits != num_logits or device not in self.labels:
@@ -113,9 +126,10 @@ class ClipLoss(nn.Module):
                 self.prev_num_logits = num_logits
         else:
             labels = self.labels[device]
+        '''
 
         total_loss = (
-            F.cross_entropy(logits_per_image, labels) +
-            F.cross_entropy(logits_per_text, labels)
+            F.cross_entropy(s_logits_per_image, t_logits_per_image) +
+            F.cross_entropy(s_logits_per_text, t_logits_per_text)
             ) / 2
         return total_loss

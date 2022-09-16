@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 
 from tqdm import tqdm
 
@@ -37,7 +36,7 @@ def loss_eval(student_model, teacher_model, data, loss, autocast, args):
     eval_metrics = {f"val/{args.modality}_loss": tot_loss}
     return eval_metrics
 
-def dual_loss_eval(student_model, teacher_model, data, loss, autocast, args):
+def dual_loss_eval(student_model, teacher_model, data, autocast, args):
     student_model.eval()
     dev = torch.device(args.device)
     val_dat = data['val'].dataloader
@@ -55,15 +54,20 @@ def dual_loss_eval(student_model, teacher_model, data, loss, autocast, args):
 
             n_batch += 1
             with autocast():
-                si_feat, st_feat = student_model(val_img, val_txt)
-                si_feat, st_feat = F.normalize(si_feat, dim=-1), F.normalize(st_feat, dim=-1)
-                ti_feat, tt_feat = teacher_model(val_img, val_txt)
-                ti_feat, tt_feat = F.normalize(ti_feat, dim=-1), F.normalize(tt_feat, dim=-1)
+                si_feat, st_feat, s_ls = student_model(val_img, val_txt)
+                ti_feat, tt_feat, t_ls = teacher_model(val_img, val_txt)
+                s_ls, t_ls = s_ls.mean(), t_ls.mean()
 
-                s_similarities = si_feat @ st_feat.T
-                t_similarities = ti_feat @ tt_feat.T
+                s_logits_per_image = s_ls * si_feat @ st_feat.T
+                s_logits_per_text = s_logits_per_image.T
+                t_logits_per_image = t_ls * ti_feat @ tt_feat.T
+                t_logits_per_text = t_logits_per_image.T
 
-                val_loss = loss(s_similarities, t_similarities)
+                val_loss = (
+                        F.cross_entropy(s_logits_per_image, t_logits_per_image) +
+                        F.cross_entropy(s_logits_per_text, t_logits_per_text)
+                    ) / 2 
+
                 tot_loss += val_loss.item()
         tot_loss /= n_batch
     eval_metrics = {f"val/similarity_loss": tot_loss}

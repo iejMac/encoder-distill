@@ -5,7 +5,6 @@ import torch
 from PIL import Image
 import open_clip
 from argparse import Namespace
-import torch.nn.functional as F
 
 from collections import OrderedDict
 from contextlib import suppress
@@ -120,19 +119,15 @@ def main():
             t0_t_forward = time.perf_counter()
             with torch.no_grad():
                 with autocast():
-                    ti_feat, tt_feat = teacher_model(images, texts)
-                    ti_feat, tt_feat = F.normalize(ti_feat, dim=-1), F.normalize(tt_feat, dim=-1)
-                    t_similarities = ti_feat @ tt_feat.T
+                    ti_feat, tt_feat, t_log_scale = teacher_model(images, texts)
             t_t_for = time.perf_counter() - t0_t_forward
 
             metrics.update({"train/teacher_forward_samples_per_s": images.shape[0]/t_t_for})
 
             t0_s_forward = time.perf_counter()
             with autocast():
-                si_feat, st_feat = student_model(images, texts)
-                si_feat, st_feat = F.normalize(si_feat, dim=-1), F.normalize(st_feat, dim=-1)
-                s_similarities = si_feat @ st_feat.T
-                total_loss = loss(s_similarities, t_similarities)
+                si_feat, st_feat, s_log_scale = student_model(images, texts)
+                total_loss = loss(si_feat, st_feat, s_log_scale, ti_feat, tt_feat, t_log_scale)
 
             total_loss.backward()
             t_s_for_back = time.perf_counter() - t0_s_forward

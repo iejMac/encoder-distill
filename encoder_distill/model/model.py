@@ -24,6 +24,7 @@ def create_model_and_transforms(model_type, model_kwargs, modality, mlp_dims, de
         model.set_grad_checkpointing() # TODO do we always want to do this?
         model.to(device) # TODO: does this double allocate on GPU?
 
+        logit_scale = model.logit_scale
 
         if "text" in modality:
             model_text = CLIPText(model.token_embedding, model.positional_embedding, model.transformer, model.attn_mask, model.ln_final, model.text_projection)
@@ -37,7 +38,7 @@ def create_model_and_transforms(model_type, model_kwargs, modality, mlp_dims, de
     if (model_image is not None) and (model_text is not None):
         encoder_text = MLPEncoder(model_text, mlp_text)
         encoder_image = MLPEncoder(model_image, mlp_image)
-        encoder = MLPCLIP(encoder_image, encoder_text) # TODO: Generalize this into a DualEncoder or something
+        encoder = MLPCLIP(encoder_image, encoder_text, logit_scale) # TODO: Generalize this into a DualEncoder or something
         preprocess = (preprocess_image, preprocess_text)
     else:
         model, mlp, preprocess = (model_image, mlp_image, preprocess_image) if model_image is not None else (model_text, mlp_text, preprocess_text)
