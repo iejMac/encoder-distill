@@ -1,5 +1,6 @@
 import open_clip
 import torch
+import torch.nn.functional as F
 
 from torch import nn
 
@@ -38,10 +39,11 @@ class CLIPText(nn.Module):
 
 # Useful for evaluation
 class MLPCLIP(torch.nn.Module):
-    def __init__(self, img_model, txt_model):
+    def __init__(self, img_model, txt_model, logit_scale):
         super().__init__()
         self.img_model = img_model
         self.txt_model = txt_model
+        self.logit_scale = logit_scale
 
     def encode_text(self, text):
         return self.txt_model(text)
@@ -50,8 +52,10 @@ class MLPCLIP(torch.nn.Module):
 
     def forward(self, img, txt):
         img_feat = self.encode_image(img)
+        F.normalize(img_feat, dim=-1)
         txt_feat = self.encode_text(txt)
-        return img_feat, txt_feat
+        F.normalize(txt_feat, dim=-1)
+        return img_feat, txt_feat, self.logit_scale.exp()
 
 def combine_image_text(image_model, text_model, remove_mlp, model_kwargs):
     if remove_mlp:

@@ -13,11 +13,12 @@ from torch import nn
 
 from data import get_data
 from distributed import init_distributed_device, is_master, world_info_from_env
-from params import parse_args
-from zero_shot import zero_shot_eval
-from scheduler import cosine_lr
+from evaluate import dual_loss_eval
+from loss import ClipLoss
 from model import create_model_and_transforms
-from evaluate import loss_eval
+from params import parse_args
+from scheduler import cosine_lr
+from zero_shot import zero_shot_eval
 
 
 def main():
@@ -39,11 +40,19 @@ def main():
     # Model
     teacher_model, preprocess_t = create_model_and_transforms("clip", {"model_name": "ViT-L-14", "pretrained": "laion400m_e32"}, args.modality, None, dev)
     student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-H-14"}, args.modality, (1024, 768), dev)
-    # student_model, preprocess_s = create_model_and_transforms("clip", {"model_name": "ViT-B-32"}, args.modality, (512, 768), dev)
-    preprocess = preprocess_t # = preprocess_s for now
+
+    preprocess, _ = preprocess_t # = preprocess_s for now
 
     # Loss and Opt:
-    loss = nn.MSELoss()
+    loss = ClipLoss(
+        local_loss=args.local_loss,
+        gather_with_grad=args.gather_with_grad,
+        cache_labels=True,
+        rank=args.rank,
+        world_size=args.world_size,
+        use_horovod=args.horovod
+    )
+
     params = student_model.parameters()
 
     opt = torch.optim.AdamW(
@@ -105,38 +114,33 @@ def main():
             metrics.update({"train/lr": opt.param_groups[0]["lr"]})
 
             images, texts = batch
-            if args.modality == "image":
-                x = images
-            elif args.modality == "text":
-                x = texts
-
-            x = x.to(dev, non_blocking=True)
+            images, texts = images.to(dev, non_blocking=True), texts.to(dev, non_blocking=True)
 
             t0_t_forward = time.perf_counter()
             with torch.no_grad():
                 with autocast():
-                    t_feat = teacher_model(x)
+                    ti_feat, tt_feat, _ = teacher_model(images, texts)
             t_t_for = time.perf_counter() - t0_t_forward
 
-            metrics.update({"train/teacher_forward_samples_per_s": x.shape[0]/t_t_for})
+            metrics.update({"train/teacher_forward_samples_per_s": images.shape[0]/t_t_for})
 
             t0_s_forward = time.perf_counter()
             with autocast():
-                s_feat = student_model(x)
-                total_loss = loss(s_feat, t_feat)
+                si_feat, st_feat, s_log_scale = student_model(images, texts)
+                total_loss = loss(si_feat, st_feat, s_log_scale, ti_feat, tt_feat)
 
             total_loss.backward()
             t_s_for_back = time.perf_counter() - t0_s_forward
-            metrics.update({"train/student_forward_backward_samples_per_s": x.shape[0]/t_s_for_back})
+            metrics.update({"train/student_forward_backward_samples_per_s": images.shape[0]/t_s_for_back})
             
             opt.step()
             opt.zero_grad()
 
-            metrics.update({f"train/{args.modality}_loss": total_loss.item()})
+            metrics.update({f"train/similarity_loss": total_loss.item()})
 
             # MSE eval
             if step % args.val_frequency == 0:
-                eval_metrics = loss_eval(student_model, teacher_model, data, loss, autocast, args)
+                eval_metrics = dual_loss_eval(student_model, teacher_model, data, autocast, args)
                 metrics.update(eval_metrics)
                 student_model.train()
 
@@ -156,7 +160,7 @@ def main():
                     )
 
             tf = time.perf_counter()
-            metrics.update({"train/samples_per_s": x.shape[0]/(tf-t0)})
+            metrics.update({"train/samples_per_s": images.shape[0]/(tf-t0)})
 
             if is_master(args):
                 for name, val in metrics.items():
