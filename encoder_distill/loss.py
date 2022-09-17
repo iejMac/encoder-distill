@@ -85,7 +85,7 @@ class ClipLoss(nn.Module):
         self.prev_num_logits = 0
         self.labels = {}
 
-    def forward(self, si_feat, st_feat, s_ls, ti_feat, tt_feat, t_ls):
+    def forward(self, si_feat, st_feat, s_ls, ti_feat, tt_feat):
         device = si_feat.device
         if self.world_size > 1:
             all_si_features, all_st_features = gather_features(
@@ -98,18 +98,18 @@ class ClipLoss(nn.Module):
             if self.local_loss:
                 s_logits_per_image = s_ls * si_feat @ all_st_features.T
                 s_logits_per_text = s_ls * st_feat @ all_si_features.T
-                t_logits_per_image = t_ls * ti_feat @ all_tt_features.T
-                t_logits_per_text = t_ls * tt_feat @ all_ti_features.T
+                t_logits_per_image = ti_feat @ all_tt_features.T # no logit_scale
+                t_logits_per_text = tt_feat @ all_ti_features.T # no logit_scale
             else:
                 s_logits_per_image = s_ls * all_si_features @ all_st_features.T
                 s_logits_per_text = s_logits_per_image.T
-                t_logits_per_image = t_ls * all_ti_features @ all_tt_features.T
+                t_logits_per_image = all_ti_features @ all_tt_features.T # no logit_scale 
                 t_logits_per_text = t_logits_per_image.T
         else:
             s_logits_per_image = s_ls * si_feat @ st_feat.T
             s_logits_per_text = s_ls * st_feat @ si_feat.T
-            t_logits_per_image = t_ls * ti_feat @ tt_feat.T
-            t_logits_per_text = t_ls * tt_feat @ ti_feat.T
+            t_logits_per_image = ti_feat @ tt_feat.T # no logit_scale
+            t_logits_per_text = tt_feat @ ti_feat.T # no logit_scale
 
 
         # NOTE: don't understand why you would need to cache now so I'll comment it out

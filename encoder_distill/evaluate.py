@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 from tqdm import tqdm
 
@@ -55,13 +56,17 @@ def dual_loss_eval(student_model, teacher_model, data, autocast, args):
             n_batch += 1
             with autocast():
                 si_feat, st_feat, s_ls = student_model(val_img, val_txt)
-                ti_feat, tt_feat, t_ls = teacher_model(val_img, val_txt)
-                s_ls, t_ls = s_ls.mean(), t_ls.mean()
+                ti_feat, tt_feat, _ = teacher_model(val_img, val_txt)
+                s_ls = s_ls.mean()
 
                 s_logits_per_image = s_ls * si_feat @ st_feat.T
                 s_logits_per_text = s_logits_per_image.T
-                t_logits_per_image = t_ls * ti_feat @ tt_feat.T
+                t_logits_per_image = ti_feat @ tt_feat.T # no logit_scale
                 t_logits_per_text = t_logits_per_image.T
+
+                t_logits_per_image = t_logits_per_image.softmax(dim=1)
+                t_logits_per_text = t_logits_per_text.softmax(dim=1)
+
 
                 val_loss = (
                         F.cross_entropy(s_logits_per_image, t_logits_per_image) +

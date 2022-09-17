@@ -119,7 +119,7 @@ def main():
             t0_t_forward = time.perf_counter()
             with torch.no_grad():
                 with autocast():
-                    ti_feat, tt_feat, t_log_scale = teacher_model(images, texts)
+                    ti_feat, tt_feat, _ = teacher_model(images, texts)
             t_t_for = time.perf_counter() - t0_t_forward
 
             metrics.update({"train/teacher_forward_samples_per_s": images.shape[0]/t_t_for})
@@ -127,7 +127,7 @@ def main():
             t0_s_forward = time.perf_counter()
             with autocast():
                 si_feat, st_feat, s_log_scale = student_model(images, texts)
-                total_loss = loss(si_feat, st_feat, s_log_scale, ti_feat, tt_feat, t_log_scale)
+                total_loss = loss(si_feat, st_feat, s_log_scale, ti_feat, tt_feat)
 
             total_loss.backward()
             t_s_for_back = time.perf_counter() - t0_s_forward
@@ -140,7 +140,7 @@ def main():
 
             # MSE eval
             if step % args.val_frequency == 0:
-                eval_metrics = dual_loss_eval(student_model, teacher_model, data, loss, autocast, args)
+                eval_metrics = dual_loss_eval(student_model, teacher_model, data, autocast, args)
                 metrics.update(eval_metrics)
                 student_model.train()
 
