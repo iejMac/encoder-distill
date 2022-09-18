@@ -98,22 +98,25 @@ class ClipLoss(nn.Module):
             if self.local_loss:
                 s_logits_per_image = s_ls * si_feat @ all_st_features.T
                 s_logits_per_text = s_ls * st_feat @ all_si_features.T
+                # s_logits_per_image = si_feat @ all_st_features.T
+                # s_logits_per_text = st_feat @ all_si_features.T
                 t_logits_per_image = ti_feat @ all_tt_features.T # no logit_scale
                 t_logits_per_text = tt_feat @ all_ti_features.T # no logit_scale
             else:
                 s_logits_per_image = s_ls * all_si_features @ all_st_features.T
                 s_logits_per_text = s_logits_per_image.T
+                # s_logits_per_image = all_si_features @ all_st_features.T
+                # s_logits_per_text = s_logits_per_image.T
                 t_logits_per_image = all_ti_features @ all_tt_features.T # no logit_scale 
                 t_logits_per_text = t_logits_per_image.T
         else:
             s_logits_per_image = s_ls * si_feat @ st_feat.T
             s_logits_per_text = s_ls * st_feat @ si_feat.T
+            # s_logits_per_image = si_feat @ st_feat.T
+            # s_logits_per_text = st_feat @ si_feat.T
             t_logits_per_image = ti_feat @ tt_feat.T # no logit_scale
             t_logits_per_text = tt_feat @ ti_feat.T # no logit_scale
 
-
-        # NOTE: don't understand why you would need to cache now so I'll comment it out
-        # and discover this later
         '''
         # calculated ground-truth and cache if enabled
         num_logits = logits_per_image.shape[0]
@@ -135,4 +138,21 @@ class ClipLoss(nn.Module):
             F.cross_entropy(s_logits_per_image, t_logits_per_image) +
             F.cross_entropy(s_logits_per_text, t_logits_per_text)
             ) / 2
+
+        '''
+        # Re-weighing positive samples
+        diag_sqrt_bs = torch.ones(t_logits_per_image.shape[0], t_logits_per_image.shape[1]).to(device)
+        diag_sqrt_bs = diag_sqrt_bs.fill_diagonal_(all_si_features.shape[0] ** 0.5)
+        t_logits_per_image *= diag_sqrt_bs
+        t_logits_per_text *= diag_sqrt_bs
+        s_logits_per_image *= diag_sqrt_bs
+        s_logits_per_text *= diag_sqrt_bs
+        '''
+        '''
+        total_loss = (
+            F.mse_loss(s_logits_per_image, t_logits_per_image) +
+            F.mse_loss(s_logits_per_text, t_logits_per_text)
+        ) / 2 + s_ls - s_ls
+        '''
+
         return total_loss

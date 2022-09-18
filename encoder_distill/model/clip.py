@@ -52,9 +52,9 @@ class MLPCLIP(torch.nn.Module):
 
     def forward(self, img, txt):
         img_feat = self.encode_image(img)
-        F.normalize(img_feat, dim=-1)
+        img_feat = F.normalize(img_feat, dim=-1)
         txt_feat = self.encode_text(txt)
-        F.normalize(txt_feat, dim=-1)
+        txt_feat = F.normalize(txt_feat, dim=-1)
         return img_feat, txt_feat, self.logit_scale.exp()
 
 def combine_image_text(image_model, text_model, remove_mlp, model_kwargs):

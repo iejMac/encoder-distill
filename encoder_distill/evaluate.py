@@ -61,18 +61,24 @@ def dual_loss_eval(student_model, teacher_model, data, autocast, args):
 
                 s_logits_per_image = s_ls * si_feat @ st_feat.T
                 s_logits_per_text = s_logits_per_image.T
+                # s_logits_per_image = si_feat @ st_feat.T
+                # s_logits_per_text = s_logits_per_image.T
                 t_logits_per_image = ti_feat @ tt_feat.T # no logit_scale
                 t_logits_per_text = t_logits_per_image.T
 
                 t_logits_per_image = t_logits_per_image.softmax(dim=1)
                 t_logits_per_text = t_logits_per_text.softmax(dim=1)
 
-
                 val_loss = (
                         F.cross_entropy(s_logits_per_image, t_logits_per_image) +
                         F.cross_entropy(s_logits_per_text, t_logits_per_text)
                     ) / 2 
-
+                '''
+                val_loss = (
+                    F.mse_loss(s_logits_per_image, t_logits_per_image) +
+                    F.mse_loss(s_logits_per_text, t_logits_per_text)
+                ) / 2
+                '''
                 tot_loss += val_loss.item()
         tot_loss /= n_batch
     eval_metrics = {f"val/similarity_loss": tot_loss}
